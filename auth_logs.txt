@@ -1,0 +1,22 @@
+user=alice ip=10.0.0.5 status=fail time=10:00:01
+user=bob ip=10.0.0.5 status=fail time=10:00:02
+user=charlie ip=10.0.0.5 status=fail time=10:00:03
+user=emma ip=10.0.0.5 status=fail time=10:00:04
+user=david ip=10.0.0.5 status=fail time=10:00:05
+user=eva ip=10.0.0.5 status=fail time=10:00:06
+user=frank ip=10.0.0.5 status=fail time=10:00:07
+user=george ip=10.0.0.5 status=fail time=10:00:08
+
+user=admin ip=185.22.10.8 status=fail time=10:01:01
+user=admin ip=185.22.10.8 status=fail time=10:01:02
+user=admin ip=185.22.10.8 status=success time=10:01:05
+
+user=charlie ip=192.168.1.20 status=fail time=10:02:10
+user=charlie ip=192.168.1.20 status=fail time=10:02:12
+user=charlie ip=192.168.1.20 status=fail time=10:02:14
+user=charlie ip=192.168.1.20 status=fail time=10:02:16
+
+user=emma ip=172.16.0.3 status=fail time=10:03:10
+
+user=bob ip=172.16.0.9 status=fail time=10:04:00
+user=bob ip=172.16.0.9 status=success time=10:04:05
