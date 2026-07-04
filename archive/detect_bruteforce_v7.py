@@ -1,14 +1,19 @@
-import json
 from collections import defaultdict
+import json
+import time
 
 # -----------------------------
-# LOAD CONFIG (NEW)
+# CONFIG (first step toward real systems)
 # -----------------------------
-def load_config():
-    with open("config.json", "r") as f:
-        return json.load(f)
-
-CONFIG = load_config()
+CONFIG = {
+    "FAILED_WEIGHT": 10,
+    "SUCCESS_WEIGHT": 20,
+    "MULTI_USER_WEIGHT": 15,
+    "ADMIN_WEIGHT": 30,
+    "BURST_WINDOW": 5,
+    "BURST_THRESHOLD": 4,
+    "NOISE_THRESHOLD": 1
+}
 
 
 # -----------------------------
@@ -45,12 +50,9 @@ def parse_log(line):
 
 
 # -----------------------------
-# ANALYSIS ENGINE
+# REAL-TIME STYLE PROCESSING
 # -----------------------------
-def analyze_ip(events):
-
-    if not events:
-        return
+def process_stream(events):
 
     failed = 0
     success = 0
@@ -60,7 +62,13 @@ def analyze_ip(events):
 
     ip = events[0][1]
 
+    print(f"\n[STREAM] Processing IP: {ip}")
+
     for t, ip, user, status in events:
+
+        # simulate streaming delay (conceptual)
+        # time.sleep(0.05)
+
         users.add(user)
         timestamps.append(t)
 
@@ -72,10 +80,14 @@ def analyze_ip(events):
         if status == "success":
             success += 1
 
+        # real-time alert trigger (conceptual SOC behaviour)
+        if failed >= CONFIG["NOISE_THRESHOLD"] and failed < 3:
+            print(f"[MONITOR] Suspicious activity from {ip}")
+
     timestamps.sort()
 
     # -----------------------------
-    # BURST DETECTION (CONFIG DRIVEN)
+    # BURST DETECTION
     # -----------------------------
     bursts = 0
 
@@ -121,7 +133,7 @@ def analyze_ip(events):
         attack_type = "Reconnaissance / Noise"
 
     # -----------------------------
-    # SEVERITY + ACTION
+    # SEVERITY
     # -----------------------------
     if score >= 90:
         severity = "CRITICAL"
@@ -160,16 +172,17 @@ def analyze_ip(events):
         alerts.append(alert)
 
     # -----------------------------
-    # SOC OUTPUT
+    # OUTPUT
     # -----------------------------
-    print("\n===================================")
-    print("SOC ALERT")
-    print("===================================")
-    print(f"[{severity}] {attack_type}")
+    print("\n-------------------------------")
+    print("SOC ALERT GENERATED")
+    print("-------------------------------")
     print(f"IP: {ip}")
+    print(f"SEVERITY: {severity}")
+    print(f"TYPE: {attack_type}")
     print(f"ACTION: {action}")
     print(f"SCORE: {score}")
-    print("===================================\n")
+    print("-------------------------------\n")
 
 
 # -----------------------------
@@ -184,10 +197,10 @@ def run(file_path):
                 logs[parsed[1]].append(parsed)
 
     for ip, events in logs.items():
-        analyze_ip(events)
+        process_stream(events)
 
     # -----------------------------
-    # EXPORTS
+    # EXPORT
     # -----------------------------
     with open("alerts.json", "w") as f:
         json.dump(alerts, f, indent=4)
@@ -198,5 +211,3 @@ def run(file_path):
 
 if __name__ == "__main__":
     run("auth_logs.txt")
-
-

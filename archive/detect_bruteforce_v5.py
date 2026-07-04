@@ -1,15 +1,15 @@
-import json
 from collections import defaultdict
+import json
 
 # -----------------------------
-# LOAD CONFIG (NEW)
+# CONFIG
 # -----------------------------
-def load_config():
-    with open("config.json", "r") as f:
-        return json.load(f)
-
-CONFIG = load_config()
-
+FAILED_WEIGHT = 10
+SUCCESS_WEIGHT = 20
+MULTI_USER_WEIGHT = 15
+ADMIN_WEIGHT = 30
+BURST_WINDOW = 5
+BURST_THRESHOLD = 4
 
 # -----------------------------
 # STORAGE
@@ -20,25 +20,32 @@ audit_log = []
 
 
 # -----------------------------
-# PARSER
+# PARSER (FIXED + SAFE)
 # -----------------------------
 def parse_log(line):
     try:
         parts = line.strip().split()
+
         data = {}
 
         for p in parts:
             if "=" in p:
-                k, v = p.split("=")
-                data[k] = v
+                key, value = p.split("=")
+                data[key] = value
 
-        if "ip" not in data:
+        # prevent broken logs
+        if "ip" not in data or "user" not in data or "status" not in data:
             return None
 
         h, m, s = map(int, data.get("time", "0:0:0").split(":"))
         timestamp = h * 3600 + m * 60 + s
 
-        return (timestamp, data.get("ip"), data.get("user"), data.get("status"))
+        return (
+            timestamp,
+            data.get("ip"),
+            data.get("user"),
+            data.get("status")
+        )
 
     except:
         return None
@@ -58,7 +65,7 @@ def analyze_ip(events):
     admin_fail = 0
     timestamps = []
 
-    ip = events[0][1]
+    ip_address = events[0][1]
 
     for t, ip, user, status in events:
         users.add(user)
@@ -75,7 +82,7 @@ def analyze_ip(events):
     timestamps.sort()
 
     # -----------------------------
-    # BURST DETECTION (CONFIG DRIVEN)
+    # BURST DETECTION
     # -----------------------------
     bursts = 0
 
@@ -83,25 +90,25 @@ def analyze_ip(events):
         window = 1
 
         for j in range(i + 1, len(timestamps)):
-            if timestamps[j] - timestamps[i] <= CONFIG["BURST_WINDOW"]:
+            if timestamps[j] - timestamps[i] <= BURST_WINDOW:
                 window += 1
 
-        if window >= CONFIG["BURST_THRESHOLD"]:
+        if window >= BURST_THRESHOLD:
             bursts += 1
 
     # -----------------------------
-    # SCORE ENGINE
+    # SCORE
     # -----------------------------
     score = (
-        failed * CONFIG["FAILED_WEIGHT"] +
-        success * CONFIG["SUCCESS_WEIGHT"] +
-        len(users) * CONFIG["MULTI_USER_WEIGHT"] +
-        admin_fail * CONFIG["ADMIN_WEIGHT"] +
+        failed * FAILED_WEIGHT +
+        success * SUCCESS_WEIGHT +
+        len(users) * MULTI_USER_WEIGHT +
+        admin_fail * ADMIN_WEIGHT +
         bursts * 20
     )
 
     # -----------------------------
-    # CLASSIFICATION
+    # ATTACK TYPE (IMPROVED COVERAGE)
     # -----------------------------
     attack_type = "Normal Activity"
 
@@ -121,62 +128,64 @@ def analyze_ip(events):
         attack_type = "Reconnaissance / Noise"
 
     # -----------------------------
-    # SEVERITY + ACTION
+    # SEVERITY
     # -----------------------------
     if score >= 90:
         severity = "CRITICAL"
-        action = "IMMEDIATE RESPONSE"
     elif score >= 60:
         severity = "HIGH"
-        action = "INVESTIGATE"
     elif score >= 30:
         severity = "MEDIUM"
-        action = "MONITOR"
     else:
         severity = "LOW"
-        action = "LOG ONLY"
 
     # -----------------------------
-    # ALERT OBJECT
+    # ALERT DECISION
     # -----------------------------
     alert = {
-        "ip": ip,
+        "ip": ip_address,
         "severity": severity,
         "attack_type": attack_type,
-        "action": action,
         "score": score,
-        "evidence": {
-            "failed": failed,
-            "success": success,
-            "users": len(users),
-            "admin_fail": admin_fail,
-            "bursts": bursts
-        }
+        "failed": failed,
+        "success": success,
+        "users": len(users),
+        "admin_fail": admin_fail,
+        "bursts": bursts
     }
 
+    # ALWAYS store in audit log
     audit_log.append(alert)
 
-    if severity != "LOW":
+    # ONLY push real alerts
+    if severity in ["MEDIUM", "HIGH", "CRITICAL"]:
         alerts.append(alert)
 
     # -----------------------------
-    # SOC OUTPUT
+    # OUTPUT
     # -----------------------------
-    print("\n===================================")
+    print("\n==================================================")
     print("SOC ALERT")
-    print("===================================")
-    print(f"[{severity}] {attack_type}")
-    print(f"IP: {ip}")
-    print(f"ACTION: {action}")
-    print(f"SCORE: {score}")
-    print("===================================\n")
+    print("==================================================")
+
+    print(f"\nSEVERITY   : {severity}")
+    print(f"ATTACK     : {attack_type}")
+    print(f"IP         : {ip_address}")
+    print(f"SCORE      : {score}")
+
+    print("\nSUMMARY")
+    print(f"- Failed: {failed}")
+    print(f"- Success: {success}")
+    print(f"- Users: {len(users)}")
+    print(f"- Bursts: {bursts}")
+
+    print("\n==================================================\n")
 
 
 # -----------------------------
 # RUNNER
 # -----------------------------
 def run(file_path):
-
     with open(file_path, "r") as f:
         for line in f:
             parsed = parse_log(line)
@@ -198,5 +207,3 @@ def run(file_path):
 
 if __name__ == "__main__":
     run("auth_logs.txt")
-
-

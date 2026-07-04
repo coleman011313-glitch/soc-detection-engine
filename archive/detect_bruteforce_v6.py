@@ -1,14 +1,16 @@
-import json
 from collections import defaultdict
+import json
 
 # -----------------------------
-# LOAD CONFIG (NEW)
+# CONFIG
 # -----------------------------
-def load_config():
-    with open("config.json", "r") as f:
-        return json.load(f)
+FAILED_WEIGHT = 10
+SUCCESS_WEIGHT = 20
+MULTI_USER_WEIGHT = 15
+ADMIN_WEIGHT = 30
 
-CONFIG = load_config()
+BURST_WINDOW = 5
+BURST_THRESHOLD = 4
 
 
 # -----------------------------
@@ -38,14 +40,19 @@ def parse_log(line):
         h, m, s = map(int, data.get("time", "0:0:0").split(":"))
         timestamp = h * 3600 + m * 60 + s
 
-        return (timestamp, data.get("ip"), data.get("user"), data.get("status"))
+        return (
+            timestamp,
+            data.get("ip"),
+            data.get("user"),
+            data.get("status")
+        )
 
     except:
         return None
 
 
 # -----------------------------
-# ANALYSIS ENGINE
+# ANALYZER
 # -----------------------------
 def analyze_ip(events):
 
@@ -75,28 +82,28 @@ def analyze_ip(events):
     timestamps.sort()
 
     # -----------------------------
-    # BURST DETECTION (CONFIG DRIVEN)
+    # BURST DETECTION
     # -----------------------------
     bursts = 0
 
     for i in range(len(timestamps)):
-        window = 1
+        window_count = 1
 
         for j in range(i + 1, len(timestamps)):
-            if timestamps[j] - timestamps[i] <= CONFIG["BURST_WINDOW"]:
-                window += 1
+            if timestamps[j] - timestamps[i] <= BURST_WINDOW:
+                window_count += 1
 
-        if window >= CONFIG["BURST_THRESHOLD"]:
+        if window_count >= BURST_THRESHOLD:
             bursts += 1
 
     # -----------------------------
-    # SCORE ENGINE
+    # SCORE
     # -----------------------------
     score = (
-        failed * CONFIG["FAILED_WEIGHT"] +
-        success * CONFIG["SUCCESS_WEIGHT"] +
-        len(users) * CONFIG["MULTI_USER_WEIGHT"] +
-        admin_fail * CONFIG["ADMIN_WEIGHT"] +
+        failed * FAILED_WEIGHT +
+        success * SUCCESS_WEIGHT +
+        len(users) * MULTI_USER_WEIGHT +
+        admin_fail * ADMIN_WEIGHT +
         bursts * 20
     )
 
@@ -121,11 +128,11 @@ def analyze_ip(events):
         attack_type = "Reconnaissance / Noise"
 
     # -----------------------------
-    # SEVERITY + ACTION
+    # SEVERITY
     # -----------------------------
     if score >= 90:
         severity = "CRITICAL"
-        action = "IMMEDIATE RESPONSE"
+        action = "IMMEDIATE INVESTIGATION"
     elif score >= 60:
         severity = "HIGH"
         action = "INVESTIGATE"
@@ -137,19 +144,21 @@ def analyze_ip(events):
         action = "LOG ONLY"
 
     # -----------------------------
-    # ALERT OBJECT
+    # BUILD ALERT OBJECT
     # -----------------------------
     alert = {
         "ip": ip,
         "severity": severity,
         "attack_type": attack_type,
         "action": action,
+
         "score": score,
+
         "evidence": {
-            "failed": failed,
-            "success": success,
-            "users": len(users),
-            "admin_fail": admin_fail,
+            "failed_logins": failed,
+            "successful_logins": success,
+            "unique_users": len(users),
+            "admin_failures": admin_fail,
             "bursts": bursts
         }
     }
@@ -160,16 +169,25 @@ def analyze_ip(events):
         alerts.append(alert)
 
     # -----------------------------
-    # SOC OUTPUT
+    # SOC STYLE OUTPUT
     # -----------------------------
-    print("\n===================================")
+    print("\n==================================================")
     print("SOC ALERT")
-    print("===================================")
-    print(f"[{severity}] {attack_type}")
-    print(f"IP: {ip}")
+    print("==================================================")
+
+    print(f"[{severity}] - {attack_type}")
+    print(f"SOURCE IP: {ip}")
     print(f"ACTION: {action}")
-    print(f"SCORE: {score}")
-    print("===================================\n")
+
+    print("\n--- SUMMARY ---")
+    print(f"Failed: {failed}")
+    print(f"Success: {success}")
+    print(f"Users: {len(users)}")
+    print(f"Bursts: {bursts}")
+
+    print("\nSCORE:", score)
+
+    print("==================================================\n")
 
 
 # -----------------------------
@@ -187,7 +205,7 @@ def run(file_path):
         analyze_ip(events)
 
     # -----------------------------
-    # EXPORTS
+    # EXPORT
     # -----------------------------
     with open("alerts.json", "w") as f:
         json.dump(alerts, f, indent=4)
@@ -198,5 +216,3 @@ def run(file_path):
 
 if __name__ == "__main__":
     run("auth_logs.txt")
-
-
